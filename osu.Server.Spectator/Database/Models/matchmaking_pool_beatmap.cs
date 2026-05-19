@@ -5,9 +5,16 @@
 
 using System;
 using System.Diagnostics.CodeAnalysis;
+using System.Linq;
 using Newtonsoft.Json;
 using osu.Game.Online.API;
 using osu.Game.Online.Rooms;
+using osu.Game.Rulesets;
+using osu.Game.Rulesets.Catch;
+using osu.Game.Rulesets.Mania;
+using osu.Game.Rulesets.Mods;
+using osu.Game.Rulesets.Osu;
+using osu.Game.Rulesets.Taiko;
 
 namespace osu.Server.Spectator.Database.Models
 {
@@ -52,7 +59,7 @@ namespace osu.Server.Spectator.Database.Models
             BeatmapChecksum = checksum!,
             RulesetID = playmode,
             StarRating = difficultyrating,
-            RequiredMods = JsonConvert.DeserializeObject<APIMod[]>(mods ?? string.Empty) ?? [],
+            RequiredMods = GetDeserializedMods(),
         };
 
         public bool Equals(matchmaking_pool_beatmap? other)
@@ -73,6 +80,11 @@ namespace osu.Server.Spectator.Database.Models
         public static double DifficultyRatingToEloRating(double difficultyRating)
         {
             return (int)Math.Round(800 + 500 * (Math.Exp(0.16 * difficultyRating) - 1));
+        }
+
+        public APIMod[] GetDeserializedMods()
+        {
+            return JsonConvert.DeserializeObject<APIMod[]>(mods) ?? [];
         }
     }
 }
