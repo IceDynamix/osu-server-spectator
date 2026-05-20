@@ -264,7 +264,26 @@ namespace osu.Server.Spectator.Hubs.Multiplayer.Matchmaking.Queue
 
         public static double ModWeight(Mod mod, double targetRating)
         {
-            return 1.0;
+            // TODO: Fine-tune weights for taiko and catch
+            switch (mod)
+            {
+                case OsuModHardRock:
+                case TaikoModHardRock:
+                case CatchModHardRock:
+                    return 0.3 / (1 + Math.Exp(-(targetRating - 1800) / 200));
+
+                case OsuModDoubleTime:
+                case TaikoModDoubleTime:
+                case CatchModDoubleTime:
+                    return 0.5 / (1 + Math.Exp(-(targetRating - 2000) / 300));
+
+                case ManiaModDoubleTime dt:
+                    double factor = Math.Abs(dt.SpeedChange.Value - 1.5) < 0.01 ? 0.3 : 0.15;
+                    return factor / (1 + Math.Exp(-(targetRating - 1500) / 200));
+
+                default:
+                    return 1.0;
+            }
         }
 
         private static IEnumerable<double> randomNumberSamples(int n, double mu, double sigma)
