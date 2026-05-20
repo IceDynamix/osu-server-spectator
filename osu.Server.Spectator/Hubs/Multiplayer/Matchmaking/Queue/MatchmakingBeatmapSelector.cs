@@ -217,7 +217,7 @@ namespace osu.Server.Spectator.Hubs.Multiplayer.Matchmaking.Queue
         /// <returns>Number between 0 and 1 representing the probability</returns>
         public static double BeatmapWeight(matchmaking_pool_beatmap beatmap, double targetRating)
         {
-            return RatingDiffWeight(beatmap, targetRating);
+            return RatingDiffWeight(beatmap, targetRating) * TotalModsWeight(beatmap, targetRating);
         }
 
         public static double RatingDiffWeight(matchmaking_pool_beatmap beatmap, double targetRating)
@@ -247,6 +247,24 @@ namespace osu.Server.Spectator.Hubs.Multiplayer.Matchmaking.Queue
             double weight = lowerBound + (1 - lowerBound) * inverseRatingDiffSquared;
 
             return weight;
+        }
+
+        public static double TotalModsWeight(matchmaking_pool_beatmap beatmap, double targetRating)
+        {
+            APIMod[] mods = beatmap.GetDeserializedMods();
+            if (mods.Length == 0) return 1.0;
+
+            Ruleset? ruleset = beatmap.GetRuleset();
+            if (ruleset == null) return 1.0;
+
+            return mods.Select(m => m.ToMod(ruleset))
+                       .Select(m => ModWeight(m, targetRating))
+                       .Aggregate(1.0, (acc, x) => acc * x); // Product
+        }
+
+        public static double ModWeight(Mod mod, double targetRating)
+        {
+            return 1.0;
         }
 
         private static IEnumerable<double> randomNumberSamples(int n, double mu, double sigma)
