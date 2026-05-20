@@ -5,9 +5,17 @@ using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text.Json;
 using System.Threading.Tasks;
 using OpenSkillSharp.Models;
 using OpenSkillSharp.Rating;
+using osu.Game.Online.API;
+using osu.Game.Rulesets;
+using osu.Game.Rulesets.Catch.Mods;
+using osu.Game.Rulesets.Mania.Mods;
+using osu.Game.Rulesets.Mods;
+using osu.Game.Rulesets.Osu.Mods;
+using osu.Game.Rulesets.Taiko.Mods;
 using osu.Server.Spectator.Database;
 using osu.Server.Spectator.Database.Models;
 using osu.Server.Spectator.Hubs.Multiplayer.Matchmaking.Elo;
@@ -67,15 +75,38 @@ namespace osu.Server.Spectator.Hubs.Multiplayer.Matchmaking.Queue
                     (await db.GetMatchmakingPoolBeatmapsAsync(pool.id))
                     .ToDictionary(b => new BeatmapLookupKey(b.beatmap_id, b.mods), b => b);
 
+                string[] viableMods = getModsForRuleset(pool.ruleset_id);
+
                 // The pool may not contain all ranked beatmaps, so back-fill it.
                 foreach ((int beatmapId, matchmaking_pool_beatmap beatmap) in globalBeatmaps)
-                    poolBeatmaps.TryAdd(new BeatmapLookupKey(beatmapId, string.Empty), beatmap);
+                {
+                    foreach (string mod in viableMods)
+                    {
+                        poolBeatmaps.TryAdd(new BeatmapLookupKey(beatmapId, mod), beatmap);
+                    }
+                }
 
                 return new MatchmakingBeatmapSelector(pool, poolBeatmaps, dbFactory)
                 {
                     GlobalBeatmaps = globalBeatmaps
                 };
             }
+        }
+
+        private static string[] getModsForRuleset(int rulesetId)
+        {
+            List<Mod> mods = rulesetId switch
+            {
+                0 => [new OsuModHardRock(), new OsuModDoubleTime()],
+                1 => [new TaikoModHardRock(), new TaikoModDoubleTime()],
+                2 => [new CatchModHardRock(), new CatchModDoubleTime()],
+                3 => [..((double[])[1.1, 1.2, 1.3, 1.4, 1.5]).Select(rate => new ManiaModDoubleTime { SpeedChange = { Value = rate } })],
+                _ => []
+            };
+
+            return mods.Select(mod => JsonSerializer.Serialize(new APIMod(mod)))
+                       .Append(string.Empty) // NoMod
+                       .ToArray();
         }
 
         public async Task Update()
