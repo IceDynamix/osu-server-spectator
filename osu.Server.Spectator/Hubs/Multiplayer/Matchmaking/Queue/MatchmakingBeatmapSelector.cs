@@ -75,14 +75,33 @@ namespace osu.Server.Spectator.Hubs.Multiplayer.Matchmaking.Queue
                     (await db.GetMatchmakingPoolBeatmapsAsync(pool.id))
                     .ToDictionary(b => new BeatmapLookupKey(b.beatmap_id, b.mods), b => b);
 
-                string[] viableMods = getModsForRuleset(pool.ruleset_id);
+                Mod[] viableMods = getModsForRuleset(pool.ruleset_id);
 
                 // The pool may not contain all ranked beatmaps, so back-fill it.
-                foreach ((int beatmapId, matchmaking_pool_beatmap beatmap) in globalBeatmaps)
+                foreach (var mod in viableMods)
                 {
-                    foreach (string mod in viableMods)
+                    string modString = JsonSerializer.Serialize(mod);
+
+                    foreach ((int beatmapId, matchmaking_pool_beatmap beatmap) in globalBeatmaps)
                     {
-                        poolBeatmaps.TryAdd(new BeatmapLookupKey(beatmapId, mod), beatmap);
+                        var key = new BeatmapLookupKey(beatmapId, modString);
+                        if (poolBeatmaps.ContainsKey(key))
+                            continue;
+
+                        // TODO: Calculate or retrieve modded difficulty rating from somewhere
+                        double moddedDifficultyRating = beatmap.difficultyrating;
+
+                        var moddedBeatmap = new matchmaking_pool_beatmap
+                        {
+                            pool_id = pool.id,
+                            beatmap_id = beatmap.beatmap_id,
+                            playmode = beatmap.playmode,
+                            checksum = beatmap.checksum,
+                            difficultyrating = moddedDifficultyRating,
+                            rating = matchmaking_pool_beatmap.DifficultyRatingToEloRating(moddedDifficultyRating)
+                        };
+
+                        poolBeatmaps.Add(key, moddedBeatmap);
                     }
                 }
 
@@ -93,7 +112,7 @@ namespace osu.Server.Spectator.Hubs.Multiplayer.Matchmaking.Queue
             }
         }
 
-        private static string[] getModsForRuleset(int rulesetId)
+        private static Mod[] getModsForRuleset(int rulesetId)
         {
             List<Mod> mods = rulesetId switch
             {
@@ -104,9 +123,7 @@ namespace osu.Server.Spectator.Hubs.Multiplayer.Matchmaking.Queue
                 _ => []
             };
 
-            return mods.Select(mod => JsonSerializer.Serialize(new APIMod(mod)))
-                       .Append(string.Empty) // NoMod
-                       .ToArray();
+            return mods.Append(new ModNoMod()).ToArray();
         }
 
         public async Task Update()
